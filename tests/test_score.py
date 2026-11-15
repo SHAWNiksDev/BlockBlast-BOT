@@ -13,7 +13,3 @@ class ScoreTests(unittest.TestCase):
 
     def test_disabled_reader_does_not_guess_score(self):
         self.assertEqual(ScoreReader(False).read(Image.new('RGB',(1080,2400)),(61,580,1019,1539),{}),(None,None))
-
-
-
-

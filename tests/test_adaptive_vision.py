@@ -26,6 +26,3 @@ class AdaptiveVisionTests(unittest.TestCase):
         with patch('blockblast.score.shutil.which',return_value='/usr/bin/tesseract'), \
              patch('blockblast.score.subprocess.run',return_value=SimpleNamespace(returncode=0,stdout=b'tesseract 4.1.1')):
             self.assertFalse(ScoreReader().available)
-
-
-

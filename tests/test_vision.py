@@ -19,5 +19,3 @@ class VisionTests(unittest.TestCase):
     def test_wrong_screen_size_rejected(self):
         with self.assertRaises(ValueError):
             read(Image.new('RGB',(720,1600)),{'screen_size':[1080,2400]})
-
-
