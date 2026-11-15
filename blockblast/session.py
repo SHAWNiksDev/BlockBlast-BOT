@@ -53,7 +53,7 @@ class Stats:
     def update_score(self, score, best):
         """Accept OCR values defensively.
 
-        A single misread digit used to turn the record 150000 into 350000 and
+        A single misread digit used to turn the record 110000 into 310000 and
         that value stayed forever (the visible score is much lower, so the
         record could not really change).  Suspicious jumps are confirmed by a
         second read; the record is only allowed to grow once the confirmed

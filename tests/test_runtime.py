@@ -90,9 +90,9 @@ class StorageTests(unittest.TestCase):
 
     def test_spurious_record_while_score_below_it_is_ignored(self):
         stats=Stats()
-        stats.update_score(90000,150000)
-        stats.update_score(90200,350000)  # one misread digit
-        self.assertEqual((stats.score,stats.best),(90200,150000))
+        stats.update_score(90000,110000)
+        stats.update_score(90200,310000)  # one misread digit
+        self.assertEqual((stats.score,stats.best),(90200,110000))
         stats.update_score(120000,120000)  # a real new record
         self.assertEqual((stats.score,stats.best),(120000,120000))
 
