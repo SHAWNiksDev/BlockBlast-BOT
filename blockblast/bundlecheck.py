@@ -15,6 +15,9 @@ from .storage import write_json
 
 def check_components():
     report={'root':str(ROOT),'tools':{}}
+    from .calibration import region_profile
+    region_profile((400,600),(10,10,210,210),(10,250,390,350),20)
+    report['phone_setup']=True
     from PySide6.QtGui import QFont,QRawFont
     font=QRawFont.fromFont(QFont('DejaVu Sans'))
     if not font.isValid() or not all(font.supportsCharacter(ord(char)) for char in 'BlockBlast 0123456789 Привет ё Українська їєґ —'):
