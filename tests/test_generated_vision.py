@@ -46,3 +46,13 @@ class GeneratedVisionTests(unittest.TestCase):
             state=read(frame)
             for found,expected in zip(state.bounds,(48,100,592,644)):
                 self.assertAlmostEqual(found,expected,delta=4)
+
+    def test_moving_outline_does_not_move_the_cube_anchor(self):
+        from blockblast.stability import StableState
+        from blockblast.vision import State,Piece
+        consensus=StableState(3,.2)
+        shape=tuple((r,0) for r in range(5))
+        for i,delta in enumerate((0,4,-3,2)):
+            piece=Piece(shape,(125,125),(100,100,150,350+delta))
+            ready=consensus.observe(State(0,{0:piece},(0,0,800,800),(1000,1600)),i*.1)
+        self.assertTrue(ready)
