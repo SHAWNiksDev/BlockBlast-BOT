@@ -98,7 +98,7 @@ def effective_settings(args):
 
 
 def play(adb, profile, settings, delay=None, root=ROOT, control=None, quiet=False):
-    profile=validate_profile(profile)
+    profile=dict(validate_profile(profile))
     settings=validate(settings)
     if delay is not None and (not math.isfinite(delay) or delay<.02):
         raise ValueError('--delay должен быть >= 0.02')
@@ -354,6 +354,11 @@ def play(adb, profile, settings, delay=None, root=ROOT, control=None, quiet=Fals
                     raise
                 log(f'Видеопоток недоступен ({exc}); использую скриншоты.', 'capture_fallback')
         last_image,state=stable_read()
+        if not profile.get('board'):
+            # Keep one screen geometry for the session. Re-detecting its frame
+            # after every placed piece shifts the inferred cell centres.
+            profile['board']=list(state.bounds)
+            if state.size:profile['screen_size']=list(state.size)
         control.verified_epoch=control.resume_epoch
         profile=dict(profile)
         profile.setdefault('board',list(state.bounds))

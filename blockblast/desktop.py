@@ -90,6 +90,8 @@ class Window(QMainWindow):
         page=QWidget();layout=QVBoxLayout(page);layout.setContentsMargins(20,18,20,14);layout.setSpacing(14)
         row=QHBoxLayout();row.setSpacing(9);self.indicator=DeviceIndicator();row.addWidget(self.indicator);row.addWidget(self.devices,1)
         self.refresh_button=self.button('refresh',self.discover);row.addWidget(self.refresh_button)
+        self.setup_button=self.button('setup_phone',self.setup_phone);row.addWidget(self.setup_button)
+        self.trial_button=self.button('trial_move',self.start_trial);row.addWidget(self.trial_button)
         row.addWidget(self.action_button(self.start_action,'primary'));row.addWidget(self.action_button(self.pause_action));row.addWidget(self.action_button(self.stop_action,'danger'));layout.addLayout(row)
         split=QSplitter();split.setHandleWidth(14);split.setChildrenCollapsible(False);layout.addWidget(split,1)
         phone_box=self.group('phone');self.shadow_cards.append(phone_box);box=QVBoxLayout(phone_box);box.setContentsMargins(0,0,0,0);self.phone=PhoneView();box.addWidget(self.phone,1);split.addWidget(phone_box)
@@ -323,7 +325,7 @@ class Window(QMainWindow):
         active=self.session_active;available=not active and not self.closing
         self.settings_editor.setEnabled(available);self.save_button.setEnabled(available and self.settings_dirty and self.profile_valid);self.reset_button.setEnabled(available);self.devices.setEnabled(available)
         scanning=self.discovery is not None and self.discovery.isRunning()
-        self.refresh_button.setEnabled(available and not scanning);self.update_start_state();self.pause_action.setEnabled(active and not self.stopping and not self.closing);self.stop_action.setEnabled(active and not self.stopping)
+        self.trial_button.setEnabled(available and bool(self.selected_serial()) and self.profile_valid);self.setup_button.setEnabled(available and not scanning and bool(self.selected_serial()));self.refresh_button.setEnabled(available and not scanning);self.update_start_state();self.pause_action.setEnabled(active and not self.stopping and not self.closing);self.stop_action.setEnabled(active and not self.stopping)
         self.update_dependencies();self.update_settings_note();self.update_device_state()
     def set_status(self,key=None,raw=''):
         self.status_key=key;self.status_reason=raw;self.update_status()
@@ -343,7 +345,7 @@ class Window(QMainWindow):
         self.tempo.setText(self.t('tempo',rate=self.stats_data.get('moves_per_minute',0),attempts=self.stats_data.get('attempts',0),rejected=self.stats_data.get('rejected',0)))
     def update_device_state(self,*args):
         if not hasattr(self,'phone') or not hasattr(self,'device_note'):return
-        connected=bool(self.selected_serial());self.phone.connected=connected;self.phone.update()
+        connected=bool(self.selected_serial());self.trial_button.setEnabled(connected and not self.session_active and not self.closing and self.profile_valid);self.setup_button.setEnabled(connected and not self.session_active and not self.closing);self.phone.connected=connected;self.phone.update()
         scanning=self.discovery is not None and self.discovery.isRunning()
         if self.session_active or scanning:mode='busy';key='scanning' if scanning else ('pause' if self.worker and self.worker.control.status=='paused' else 'working')
         elif connected:mode='connected';key='phone_ready'
@@ -364,6 +366,19 @@ class Window(QMainWindow):
         if not devices:self.devices.addItem(self.t('no_phone'),None)
         elif previous and self.devices.findData(previous)>=0:self.devices.setCurrentIndex(self.devices.findData(previous))
         self.devices.blockSignals(False);self.update_device_state()
+    def setup_phone(self):
+        if self.session_active or self.closing or not self.selected_serial():return
+        from .calibration import SetupDialog
+        dialog=SetupDialog(self.selected_serial(),ROOT,self.lang,self)
+        if dialog.exec() and dialog.profile_path:
+            self.fields['profile'].setText(dialog.profile_path.relative_to(ROOT).as_posix())
+            self.save_settings()
+
+    def start_trial(self):
+        self._trial_next=True
+        try:self.start_bot()
+        finally:self._trial_next=False
+
     def start_bot(self):
         if self.session_active or self.closing or (self.discovery and self.discovery.isRunning()):return
         serial=self.selected_serial()
@@ -373,6 +388,7 @@ class Window(QMainWindow):
         try:
             settings=validate(dict(self.settings));settings['save_screenshots']=settings['file_logs'] and settings['save_screenshots'];profile=Path(settings['profile']);profile=profile if profile.is_absolute() else ROOT/profile;load_profile(profile)
         except (ValueError,OSError):self.set_status('profile_error');return
+        if getattr(self,'_trial_next',False):settings['max_moves']=1
         self.session_active=True;self.stopping=False;self.activity.clear();self.last_preview=None
         worker=BotWorker(serial,settings);self.worker=worker
         worker.event.connect(lambda kind,data,w=worker:self.bot_event(kind,data) if self.worker is w else None);worker.finished.connect(lambda w=worker:self.bot_finished() if self.worker is w else None)

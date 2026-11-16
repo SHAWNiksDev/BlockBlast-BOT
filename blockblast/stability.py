@@ -18,8 +18,16 @@ class StableState:
         same=self.previous is not None and state.signature()==self.previous.signature()
         if same:
             tolerance=max(2,state.cell*.025)
-            same=all(max(abs(a-b) for a,b in zip(piece.box,self.anchor.pieces[slot].box))<=tolerance
-                     for slot,piece in state.pieces.items())
+            for slot,piece in state.pieces.items():
+                anchor=self.anchor.pieces[slot]
+                rows=max(r for r,c in piece.shape)+1
+                cols=max(c for r,c in piece.shape)+1
+                size=((piece.box[2]-piece.box[0])/cols,(piece.box[3]-piece.box[1])/rows)
+                anchor_size=((anchor.box[2]-anchor.box[0])/cols,(anchor.box[3]-anchor.box[1])/rows)
+                if (max(abs(a-b) for a,b in zip(piece.center,anchor.center))>tolerance
+                        or max(abs(a-b) for a,b in zip(size,anchor_size))>tolerance):
+                    same=False
+                    break
         if not same:
             self.count=1
             self.anchor=state

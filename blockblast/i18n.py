@@ -1,5 +1,22 @@
 """Shared live UI translations. Keys and interpolation are identical in every locale."""
 ROWS = [
+('trial_move','1 ход','1 move','1 хід'),
+('setup_phone', 'Настроить телефон', 'Set up phone', 'Налаштувати телефон'),
+('setup_intro', 'Откройте классическую партию с фигурами. Снимок используется только в памяти; жесты не выполняются.', 'Open a classic game with pieces. The image stays in memory; no gestures are sent.', 'Відкрийте класичну партію з фігурами. Знімок лише в памʼяті; жести не виконуються.'),
+('setup_board', 'Выделить поле', 'Select board', 'Виділити поле'),
+('setup_tray', 'Выделить фигуры', 'Select tray', 'Виділити фігури'),
+('setup_pitch', 'Размер маленькой клетки, пикс.', 'Small cell size, px', 'Розмір малої клітинки, пікс.'),
+('setup_gain', 'Усиление движения', 'Drag gain', 'Підсилення руху'),
+('setup_lift', 'Подъём над пальцем, клеток', 'Lift above finger, cells', 'Підйом над пальцем, клітинок'),
+('setup_check', 'Проверить распознавание', 'Check recognition', 'Перевірити розпізнавання'),
+('setup_cancel', 'Закрыть', 'Close', 'Закрити'),
+('setup_wait', 'Завершаю получение снимка…', 'Finishing screen capture…', 'Завершую отримання знімка…'),
+('setup_select_board', 'Обведите мышью внутренний квадрат поля 8×8, без внешней рамки.', 'Drag around the inner 8×8 board, excluding its frame.', 'Обведіть внутрішній квадрат поля 8×8 без рамки.'),
+('setup_select_tray', 'Обведите область всех трёх слотов фигур под полем.', 'Drag around all three piece slots below the board.', 'Обведіть область усіх трьох слотів фігур під полем.'),
+('setup_regions_required', 'Сначала выделите поле и область фигур.', 'Select the board and tray first.', 'Спочатку виділіть поле й область фігур.'),
+('setup_empty', 'Фигуры не найдены. Откройте партию с фигурами.', 'No pieces found. Open a game with pieces.', 'Фігур не знайдено. Відкрийте партію з фігурами.'),
+('setup_verified', 'Распознано фигур: {count}. Сверьте выделение. Сохранение не проверяет точность жестов: начните с одной попытки.', 'Pieces found: {count}. Check the regions. Saving does not verify gestures: start with one move.', 'Розпізнано фігур: {count}. Перевірте області. Збереження не перевіряє жести: почніть з одного ходу.'),
+
 ('screen_mode','Распознавание по экрану','Screen recognition','Розпізнавання за екраном'),
 ('retry_finished','Жесты не подтверждены. Проверьте экран и запустите бота заново.','Gestures were not confirmed. Check the screen and start the bot again.','Жести не підтверджено. Перевірте екран і запустіть бота знову.'),
 ('empty_tray_finished','Лоток остаётся пустым. Проверьте игру и запустите бота заново.','The tray remains empty. Check the game and start the bot again.','Лоток залишається порожнім. Перевірте гру і запустіть бота знову.'),

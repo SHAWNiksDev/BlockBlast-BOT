@@ -31,11 +31,19 @@ class Discovery(QThread):
             if result.returncode:
                 raise RuntimeError(result.stderr.decode(errors='replace'))
             devices=[]
-            for line in result.stdout.decode().splitlines():
+            listing=result.stdout.decode(errors='replace')
+            for line in listing.splitlines():
                 match=re.match(r'(\S+)\s+device\s*(.*)',line)
                 if match:
                     model=re.search(r'model:(\S+)',match[2])
                     devices.append((match[1],model[1].replace('_',' ') if model else 'Android'))
-            self.result.emit(devices,'' if devices else 'Подключите телефон и разрешите USB-отладку')
+            error=''
+            if not devices:
+                if re.search(r'^\S+\s+unauthorized\b',listing,re.M):
+                    error='Разблокируйте телефон и подтвердите запрос «Разрешить отладку по USB». Затем нажмите «Обновить».'
+                elif re.search(r'^\S+\s+offline\b',listing,re.M):
+                    error='Телефон не отвечает (offline). Переподключите USB-кабель и нажмите «Обновить».'
+                else:error='Подключите телефон кабелем с передачей данных, включите USB-отладку и разрешите подключение.'
+            self.result.emit(devices,error)
         except Exception as exc:
             self.result.emit([],str(exc))

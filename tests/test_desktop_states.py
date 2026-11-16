@@ -35,6 +35,12 @@ class DesktopStateTests(unittest.TestCase):
         self.window.session_active=False;self.window.close()
         for p in reversed(self.patches):p.stop()
         self.directory.cleanup()
+    def test_trial_limits_only_the_worker_and_preserves_normal_settings(self):
+        self.window.start_trial()
+        self.assertEqual(self.window.worker.settings['max_moves'],1)
+        self.assertEqual(self.window.settings['max_moves'],DEFAULTS['max_moves'])
+        self.assertFalse(self.window._trial_next)
+
     def test_speed_is_removed_and_legacy_file_migrates(self):
         self.assertNotIn('speed',self.window.fields)
         path=self.root/'old.json';path.write_text(json.dumps({'speed':'safe','max_moves':12}))

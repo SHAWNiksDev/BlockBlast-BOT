@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT))
 
 from PIL import Image, ImageDraw, ImageFont
 from PySide6.QtTest import QTest
+from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import QApplication
 from blockblast.config import DEFAULTS
 from blockblast.desktop import Window
@@ -82,6 +83,27 @@ def main():
             if not window.grab().save(str(output/'settings-light.png')):
                 raise RuntimeError('Cannot save settings preview')
             window.close()
+            from blockblast.calibration import SetupDialog
+            from blockblast.vision import State, Piece
+            class DemoCapture(QObject):
+                result=Signal(object,str)
+                finished=Signal()
+                def __init__(self,*args):super().__init__()
+                def start(self):pass
+                def isRunning(self):return False
+            with patch('blockblast.calibration.Capture',DemoCapture):
+                setup=SetupDialog('demo-device',isolated)
+                setup.image=phone_preview();setup.view.set_image(setup.image)
+                setup.board=[24,235,456,667];setup.tray=[24,700,456,850];setup.pitch.setValue(24)
+                setup.update_regions()
+                state=State(sum(1<<(r*8+c) for r,c in CELLS),
+                            {i:Piece(shape,(0,0),(0,0,1,1)) for i,shape in SHAPES.items()},
+                            tuple(setup.board),(480,900))
+                with patch('blockblast.calibration.read',return_value=state):setup.verify()
+                setup.show();QTest.qWait(300)
+                if not setup.grab().save(str(output/'setup-demo.png')):
+                    raise RuntimeError('Cannot save setup preview')
+                setup.close()
     print(output)
 
 

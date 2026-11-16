@@ -1,7 +1,7 @@
 """Color/lattice recognition without fixed shape templates or OCR."""
 from dataclasses import dataclass
 import numpy as np
-from PIL import ImageDraw
+from PIL import Image, ImageDraw
 from .profile import validate_profile
 
 @dataclass
@@ -58,29 +58,61 @@ def board_bounds(im):
                 return left,max(top,bottom-(right-left)),right,bottom
     # Occupied cells break the wide dark bands. The grid itself is still one
     # connected dark component, so use its bounding box as a fallback.
-    small = dark[::2,::2].copy()
-    sh,sw = small.shape
-    for yy in range(sh):
-        for xx in range(sw):
-            if not small[yy,xx]:
-                continue
-            stack = [(yy,xx)]
-            small[yy,xx] = False
-            lo_x=hi_x=xx
-            lo_y=hi_y=yy
-            count=0
-            while stack:
-                py,px = stack.pop()
-                count += 1
-                lo_x,hi_x=min(lo_x,px),max(hi_x,px)
-                lo_y,hi_y=min(lo_y,py),max(hi_y,py)
-                for ny,nx in ((py-1,px),(py+1,px),(py,px-1),(py,px+1)):
-                    if 0<=ny<sh and 0<=nx<sw and small[ny,nx]:
-                        small[ny,nx]=False
-                        stack.append((ny,nx))
-            bw,bh=(hi_x-lo_x+1)*2,(hi_y-lo_y+1)*2
-            if bw>w*.7 and abs(bw-bh)<w*.035 and count>500:
-                return lo_x*2,lo_y*2,(hi_x+1)*2,(hi_y+1)*2
+    for mask in (dark, distinct):
+        small = mask[::2,::2].copy()
+        sh,sw = small.shape
+        for yy in range(sh):
+            for xx in range(sw):
+                if not small[yy,xx]:
+                    continue
+                stack = [(yy,xx)]
+                small[yy,xx] = False
+                lo_x=hi_x=xx
+                lo_y=hi_y=yy
+                count=0
+                while stack:
+                    py,px = stack.pop()
+                    count += 1
+                    lo_x,hi_x=min(lo_x,px),max(hi_x,px)
+                    lo_y,hi_y=min(lo_y,py),max(hi_y,py)
+                    for ny,nx in ((py-1,px),(py+1,px),(py,px-1),(py,px+1)):
+                        if 0<=ny<sh and 0<=nx<sw and small[ny,nx]:
+                            small[ny,nx]=False
+                            stack.append((ny,nx))
+                bw,bh=(hi_x-lo_x+1)*2,(hi_y-lo_y+1)*2
+                if bw>w*.7 and abs(bw-bh)<w*.035 and count>500:
+                    bounds=(lo_x*2,lo_y*2,(hi_x+1)*2,(hi_y+1)*2)
+                    if mask is dark:return bounds
+                    # A bright decorative frame belongs to the contrast component.
+                    # Locate its inner grid by testing the seven lattice crossings.
+                    candidates=[]
+                    for inset in range(0,max(2,round(w*.035)),max(1,w//540)):
+                        left,top,right,bottom=(bounds[0]+inset,bounds[1]+inset,bounds[2]-inset,bounds[3]-inset)
+                        cell=(right-left)/8
+                        diffs=[]
+                        for row in range(1,8):
+                            for col in range(1,8):
+                                x,y=round(left+col*cell),round(top+row*cell)
+                                background=im[y,x]
+                                diffs.append(float(np.min([np.mean(im[round(y+dy*cell),round(x+dx*cell)]-background)
+                                                                  for dx,dy in ((.1,.1),(-.1,.1),(.1,-.1),(-.1,-.1))])))
+                        score=float(np.quantile(diffs,.2))
+                        candidates.append((score,(left,top,right,bottom)))
+                    score,bounds=max(candidates,key=lambda item:item[0])
+                    if score>2:
+                        left,top,right,bottom=bounds
+                        margin=max(2,round(w*.012))
+                        # Snap the four sides to the inner frame's sharp edge.
+                        # This avoids shifting the inferred tray with occupancy.
+                        ys=slice(round(top+(bottom-top)*.2),round(top+(bottom-top)*.8))
+                        xs=slice(round(left+(right-left)*.2),round(left+(right-left)*.8))
+                        def vertical_edge(position):
+                            choices=range(max(1,round(position)-margin),min(w-1,round(position)+margin+1))
+                            return max(choices,key=lambda x:float(np.mean(np.linalg.norm(im[ys,x]-im[ys,x-1],axis=1))))
+                        def horizontal_edge(position):
+                            choices=range(max(1,round(position)-margin),min(h-1,round(position)+margin+1))
+                            return max(choices,key=lambda y:float(np.mean(np.linalg.norm(im[y,xs]-im[y-1,xs],axis=1))))
+                        return vertical_edge(left),horizontal_edge(top),vertical_edge(right),horizontal_edge(bottom)
     raise ValueError('Поле 8×8 не найдено: откройте классическую игру или задайте board в профиле.')
 
 
@@ -138,7 +170,16 @@ def read(image, profile=None, capture_scale=None):
         scale = scale or 1.0
     local = scaled_profile(profile,scale)
     im = np.asarray(source).astype(np.int16)
-    bounds = tuple(local.get('board') or board_bounds(im))
+    if local.get('board'):
+        bounds=tuple(local['board'])
+    else:
+        try:
+            bounds=board_bounds(im)
+        except ValueError:
+            if w>=720:raise
+            # Recover thin grid intersections lost in a reduced video frame.
+            enlarged=source.resize((w*2,h*2),Image.Resampling.BILINEAR)
+            bounds=tuple(value/2 for value in board_bounds(np.asarray(enlarged).astype(np.int16)))
     left,top,right,bottom = bounds
     if abs(right-left-(bottom-top))>w*.04 or not (0<=left<right<=w and 0<=top<bottom<=h):
         raise ValueError('Некорректные границы поля')
@@ -200,7 +241,7 @@ def read(image, profile=None, capture_scale=None):
     for i in range(64):
         if occupied[i]:
             board |= 1 << i
-    tray = local.get('tray') or [round(w*.07),round(bottom+cell*.9),round(w*.93),round(min(h*.88,bottom+cell*3.7))]
+    tray = local.get('tray') or [round(w*.07),round(bottom+cell*1.15),round(w*.93),round(min(h*.88,bottom+cell*3.5))]
     x0,y0,x1,y1 = map(int,tray)
     if not (0 <= x0 < x1 <= w and 0 <= y0 < y1 <= h):
         raise ValueError('Область фигур за пределами экрана')
@@ -220,10 +261,29 @@ def read(image, profile=None, capture_scale=None):
         # Estimate texture from the background majority of each tray slot.
         # This retains pastel centres even when the entire theme gets darker.
         foreground=distances>local.get('color_distance',threshold)
+        if np.ptp(bg)>40:
+            chroma=crop/np.maximum(crop.sum(axis=2,keepdims=True),1)
+            hue_distance=np.linalg.norm(chroma-bg/max(float(bg.sum()),1),axis=2)
+            confident=foreground & ((hue_distance>.1) | (distances>max(65*exposure,threshold*3)))
+            if confident.sum()<pitch_prior*pitch_prior*.05:continue
+            yy,xx=np.nonzero(confident)
+            support=np.zeros_like(foreground)
+            margin=max(2,round(pitch_prior*.06))
+            support[max(0,int(yy.min())-margin):min(crop.shape[0],int(yy.max())+round(pitch_prior)+1),
+                    max(0,int(xx.min())-margin):min(crop.shape[1],int(xx.max())+margin+1)]=True
+            foreground = confident if np.median(hue_distance[confident])>.1 or confident.sum()>=foreground.sum()*.35 else foreground & support
         mask = foreground & (crop.max(axis=2)>min(110,float(bg.max())*.9))
         # Dark faces may sit below the outline's brightness cutoff. Use them
         # to read the lattice, without adding shadows to its measured box.
         faces = foreground & (crop.max(axis=2)>min(110,float(bg.max())*.5))
+        # Smooth bands crossing the entire slot are theme lighting, not cubes.
+        # Keep long pieces: their cube edges produce repeated sharp changes.
+        vertical_edges=(np.mean(np.abs(np.diff(crop,axis=0)),axis=2)>12).sum(axis=0)
+        horizontal_edges=(np.mean(np.abs(np.diff(crop,axis=1)),axis=2)>12).sum(axis=1)
+        smooth_cols=(faces.mean(axis=0)>.98)&(vertical_edges<3)
+        smooth_rows=(faces.mean(axis=1)>.98)&(horizontal_edges<3)
+        mask[:,smooth_cols]=False;faces[:,smooth_cols]=False
+        mask[smooth_rows,:]=False;faces[smooth_rows,:]=False
         cols = runs(mask.sum(axis=0)>max(5,cell*.065))
         rows = runs(mask.sum(axis=1)>max(5,cell*.065))
 
@@ -272,8 +332,7 @@ def read(image, profile=None, capture_scale=None):
                 d = max(2,round(min(sx,sy)*.18))
                 if faces[cy-d:cy+d,cx-d:cx+d].mean()>.6:
                     shape.append((r,c))
-        if not shape:
-            raise ValueError('Фигура не распознана')
+        if not shape:continue
         # Normalize the polyomino.  A well-formed piece always touches all four
         # sides of its own bounding box; trim any empty border introduced by a
         # stray detection instead of planning for a shifted shape.
@@ -283,6 +342,21 @@ def read(image, profile=None, capture_scale=None):
             shape=tuple((r-r0,c-c0) for r,c in shape)
             minx=minx+c0*sx;maxx=minx+(c1-c0+1)*sx
             miny=miny+r0*sy;maxy=miny+(r1-r0+1)*sy
+        # Anchor the lattice on the sharp edge of an occupied cube. Theme
+        # lighting can move a threshold bounding box while the sprite is still.
+        ar,ac=shape[0]
+        sx=sy=pitch_prior
+        anchor_x=minx+ac*sx;anchor_y=miny+ar*sy
+        radius=max(2,round(pitch_prior*.2))
+        x_start=max(0,round(anchor_x+sx*.3));x_end=min(crop.shape[1],round(anchor_x+sx*.7))
+        y_start=max(0,round(anchor_y+sy*.3));y_end=min(crop.shape[0],round(anchor_y+sy*.7))
+        if x_end>x_start and y_end>y_start:
+            ys=range(max(1,round(anchor_y)-radius),min(crop.shape[0],round(anchor_y)+radius+1))
+            xs=range(max(1,round(anchor_x)-radius),min(crop.shape[1],round(anchor_x)+radius+1))
+            top=max(ys,key=lambda y:float(np.mean(np.linalg.norm(crop[y,x_start:x_end]-crop[y-1,x_start:x_end],axis=1))))
+            left=max(xs,key=lambda x:float(np.mean(np.linalg.norm(crop[y_start:y_end,x]-crop[y_start:y_end,x-1],axis=1))))
+            minx=left-ac*sx;miny=top-ar*sy
+            maxx=minx+(c1-c0+1)*sx;maxy=miny+(r1-r0+1)*sy
         box = (a+minx,y0+miny,a+maxx,y0+maxy)
         # Touch the center of an occupied square; bounding-box centers may be empty.
         ar,ac = shape[0]
